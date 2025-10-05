@@ -1,0 +1,25 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "web",
+      "site": "https://passkey-app.joostd.nl"
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "nl.joostd.passkey-app",
+      "sha256_cert_fingerprints": [
+        "FA:4C:1D:8E:FA:8A:DE:32:95:3A:D6:C8:4B:11:F4:35:DB:82:75:DE:F6:09:96:85:36:1C:BF:A1:57:7D:08:95"
+      ]
+    }
+  }
+]

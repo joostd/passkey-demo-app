@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+.button {
+  color: white;
+  background-color: teal;
+  padding: 15px 15px;
+  margin: 4px 2px;
+}
+</style>
+</head>
+<body>
+
+<script>
+
+const ES256 = -7; // ECDSA w/ SHA-256
+const RS256 = -257; // RSA w/ SHA-256
+
+const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
+
+var userID = new Uint8Array(8);
+self.crypto.getRandomValues(userID); // generate a random user ID
+
+var challenge = new Uint8Array(32);
+
+var createCredentialDefaultArgs = {
+    publicKey: {
+        rp: {
+            name: "Example Relying Party"
+        },
+        user: {
+            id: userID.buffer,
+            name: "deleteMe",
+             displayName: "Just Delete"
+        },
+        pubKeyCredParams: [
+            { type: "public-key", alg: ES256 },
+            { type: "public-key", alg: RS256 }
+        ],
+        authenticatorSelection: {
+          requireResidentKey: true,
+          residentKey: "required",
+          authenticatorAttachment: "platform",
+        },
+        attestation: "none",
+        challenge: challenge.buffer
+    }
+};
+
+var getCredentialDefaultArgs = {
+    publicKey: {
+        challenge: challenge.buffer,
+    },
+};
+
+function create() {
+    self.crypto.getRandomValues(challenge); // generate a random challenge
+    navigator.credentials.create(createCredentialDefaultArgs).then( (cred) => {
+        createCredentialDefaultArgs.publicKey.excludeCredentials = [ {id: cred.rawId, type: "public-key"} ]; // prevent registration of a second credential
+        document.getElementById("message").innerHTML += `<br/>Registered a credential for user <code>${ btoh(userID) }</code> with credential ID <code>${ cred.id }</code>`;
+    }).catch((e) => {
+        document.getElementById("message").innerHTML += `<br/><b>Registration failed</b>: ${ e.message }`;
+    })
+}
+
+function get() {
+    self.crypto.getRandomValues(challenge);
+    navigator.credentials.get(getCredentialDefaultArgs).then( (assertion) => {
+        handle = new Uint8Array(assertion.response.userHandle);
+        document.getElementById("message").innerHTML += `<br/>Obtained an assertion for user <code>${ btoh(handle) }</code> and credential ID <code>${ assertion.id }</code>`;
+        // ... verify signature
+    }).catch((e) => {
+        document.getElementById("message").innerHTML += `<br/><b>Authentication failed</b>: ${ e.message }`;
+    })
+}
+
+function btoh(bytes /* Uint8Array */) {
+  return [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+</script>
+
+<div>
+    <button class="button" id="create" onClick="create()">navigator.credentials.create</button>
+    <button class="button" id="get"    onClick="get()">navigator.credentials.get</button>
+    <br/>
+</div>
+
+<hr/>
+
+<ul>
+<li>In Chrome, use <b>chrome://settings/passkeys</b> or <b>chrome://settings/securityKeys</b> to delete passkeys.
+<li>In Safari, use <b>Safari</b> → <b>Settings...</b> to delete passkeys in the <b>Passwords</b> tab.
+</ul>
+
+<div id="message" class="info">
+</div>
+
+</body>
+</html>
