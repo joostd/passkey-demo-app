@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>passkey demo</title>
 <style>
 .button {
   color: white;
@@ -20,8 +21,9 @@ const RS256 = -257; // RSA w/ SHA-256
 
 const algo = { name: "ECDSA", namedCurve: "P-256", hash: { name: "SHA-256" } };
 
-var userID = new Uint8Array(8);
-self.crypto.getRandomValues(userID); // generate a random user ID
+var pubkey = null;
+
+var userID = new Uint8Array(16);
 
 var challenge = new Uint8Array(32);
 
@@ -39,11 +41,7 @@ var createCredentialDefaultArgs = {
             { type: "public-key", alg: ES256 },
             { type: "public-key", alg: RS256 }
         ],
-        authenticatorSelection: {
-          requireResidentKey: true,
-          residentKey: "required",
-          authenticatorAttachment: "platform",
-        },
+        excludeCredentials: [],
         attestation: "none",
         challenge: challenge.buffer
     }
@@ -52,28 +50,51 @@ var createCredentialDefaultArgs = {
 var getCredentialDefaultArgs = {
     publicKey: {
         challenge: challenge.buffer,
+        allowCredentials: [],
     },
 };
 
-function create() {
-    self.crypto.getRandomValues(challenge); // generate a random challenge
-    navigator.credentials.create(createCredentialDefaultArgs).then( (cred) => {
-        createCredentialDefaultArgs.publicKey.excludeCredentials = [ {id: cred.rawId, type: "public-key"} ]; // prevent registration of a second credential
-        document.getElementById("message").innerHTML += `<br/>Registered a credential for user <code>${ btoh(userID) }</code> with credential ID <code>${ cred.id }</code>`;
-    }).catch((e) => {
-        document.getElementById("message").innerHTML += `<br/><b>Registration failed</b>: ${ e.message }`;
-    })
+async function create() {
+    self.crypto.getRandomValues(challenge);
+    cred = await navigator.credentials.create(createCredentialDefaultArgs)
+    console.log(createCredentialDefaultArgs);
+    console.log(cred);
+    createCredentialDefaultArgs.publicKey.excludeCredentials.push( {id: cred.rawId, type: "public-key"} ); // prevent re-registration
+    getCredentialDefaultArgs.publicKey.allowCredentials.push( {id: cred.rawId, type: "public-key"} );
+    pubkey = await crypto.subtle.importKey( "spki", cred.response.getPublicKey(), algo, false, ["verify"] );
+    console.log(`public key: ${ btoh(new Uint8Array(cred.response.getPublicKey())) }`)
+    document.getElementById("message").innerHTML += `<br/>credential created: ${ btoh(new Uint8Array(cred.rawId)) } [${cred.authenticatorAttachment}, ${cred.response.getTransports()}]`;
 }
 
-function get() {
+async function get() {
     self.crypto.getRandomValues(challenge);
-    navigator.credentials.get(getCredentialDefaultArgs).then( (assertion) => {
-        handle = new Uint8Array(assertion.response.userHandle);
-        document.getElementById("message").innerHTML += `<br/>Obtained an assertion for user <code>${ btoh(handle) }</code> and credential ID <code>${ assertion.id }</code>`;
-        // ... verify signature
-    }).catch((e) => {
-        document.getElementById("message").innerHTML += `<br/><b>Authentication failed</b>: ${ e.message }`;
-    })
+    var assertion = await navigator.credentials.get(getCredentialDefaultArgs)
+    console.log(getCredentialDefaultArgs)
+    console.log(assertion);
+    document.getElementById("message").innerHTML += `<br/>Obtained an assertion for credential ID ${ btoh(new Uint8Array(assertion.rawId)) }`;
+    var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
+    var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", assertion.response.clientDataJSON));
+    var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
+    console.log(`ASN.1 signature: ${ btoh(new Uint8Array(assertion.response.signature)) }`)
+    rawSignature = unwrap(assertion.response.signature); // unwrap ASN.1 signature to "raw" format (r,s)
+    var verified = await crypto.subtle.verify(algo,pubkey,rawSignature,signedData.buffer);
+    console.log(`authenticatorData: ${ btoh(authenticatorData) }`)
+    console.log(`clientDataJSON: ${ new TextDecoder().decode(assertion.response.clientDataJSON) }`)
+    console.log(`clientDataHash: ${ btoh(clientDataHash) }`)
+    console.log(`signedData: ${ btoh(signedData) }`)
+    console.log('%cverified',"color: green",verified);
+}
+
+// unwrap ASN.1 signature
+function unwrap(signature) {
+    var usignature = new Uint8Array(signature);
+    var rStart = usignature[4] === 0 ? 5 : 4;
+    var rEnd = rStart + 32;
+    var sStart = usignature[rEnd + 2] === 0 ? rEnd + 3 : rEnd + 2;
+    var r = usignature.slice(rStart, rEnd);
+    var s = usignature.slice(sStart);
+    var rawSignature = new Uint8Array([...r, ...s]);
+    return rawSignature;
 }
 
 function btoh(bytes /* Uint8Array */) {
@@ -89,11 +110,6 @@ function btoh(bytes /* Uint8Array */) {
 </div>
 
 <hr/>
-
-<ul>
-<li>In Chrome, use <b>chrome://settings/passkeys</b> or <b>chrome://settings/securityKeys</b> to delete passkeys.
-<li>In Safari, use <b>Safari</b> → <b>Settings...</b> to delete passkeys in the <b>Passwords</b> tab.
-</ul>
 
 <div id="message" class="info">
 </div>
