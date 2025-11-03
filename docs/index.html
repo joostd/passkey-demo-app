@@ -38,6 +38,9 @@ var createCredentialDefaultArgs = {
             name: "deleteMe",
              displayName: "Just Delete"
         },
+        authenticatorSelection: {
+          residentKey: "required"
+        },
         pubKeyCredParams: [
             { type: "public-key", alg: ES256 },
             { type: "public-key", alg: RS256 }
