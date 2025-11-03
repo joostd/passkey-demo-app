@@ -71,7 +71,6 @@ async function get() {
     var assertion = await navigator.credentials.get(getCredentialDefaultArgs)
     console.log(getCredentialDefaultArgs)
     console.log(assertion);
-    document.getElementById("message").innerHTML += `<br/>Obtained an assertion for credential ID ${ btoh(new Uint8Array(assertion.rawId)) }`;
     var authenticatorData = new Uint8Array(assertion.response.authenticatorData);
     var clientDataHash = new Uint8Array(await crypto.subtle.digest("SHA-256", assertion.response.clientDataJSON));
     var signedData = new Uint8Array([...authenticatorData,...clientDataHash]);
@@ -83,6 +82,7 @@ async function get() {
     console.log(`clientDataHash: ${ btoh(clientDataHash) }`)
     console.log(`signedData: ${ btoh(signedData) }`)
     console.log('%cverified',"color: green",verified);
+    document.getElementById("message").innerHTML += `<br/>Obtained an assertion for credential ID ${ btoh(new Uint8Array(assertion.rawId)) } [valid signature: ${verified}]`;
 }
 
 // unwrap ASN.1 signature
